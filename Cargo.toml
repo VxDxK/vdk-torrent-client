@@ -2,6 +2,6 @@
 resolver = "2"
 
 members = [
-    "bencode",
+    "vdk-bencode",
     "torrent-client"
 ]

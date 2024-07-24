@@ -1,5 +1,5 @@
 [package]
-name = "bencode"
+name = "vdk-bencode"
 version = "0.1.0"
 edition = "2021"
 

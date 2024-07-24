@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::str::{from_utf8, FromStr};
 use std::{i64, usize};
 
-type BencodeInt = i64;
-type BencodeString = Vec<u8>;
-type BencodeList = Vec<Value>;
-type BencodeDict = BTreeMap<BencodeString, Value>;
+pub type BencodeInt = i64;
+pub type BencodeString = Vec<u8>;
+pub type BencodeList = Vec<Value>;
+pub type BencodeDict = BTreeMap<BencodeString, Value>;
 
 #[derive(Debug, PartialEq)]
 pub enum Value {
@@ -13,6 +13,76 @@ pub enum Value {
     String(BencodeString),
     List(BencodeList),
     Dict(BencodeDict),
+}
+
+impl Value {
+    pub fn is_int(&self) -> bool {
+        if let Self::Int(_) = self {
+            return true;
+        }
+        false
+    }
+
+    pub fn is_string(&self) -> bool {
+        if let Self::String(_) = self {
+            return true;
+        }
+        false
+    }
+
+    pub fn is_list(&self) -> bool {
+        if let Self::List(_) = self {
+            return true;
+        }
+        false
+    }
+
+    pub fn is_dict(&self) -> bool {
+        if let Self::Dict(_) = self {
+            return true;
+        }
+        false
+    }
+}
+
+impl TryFrom<Value> for BencodeInt {
+    type Error = ();
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Int(int) = value {
+            return Ok(int)
+        }
+        Err(())
+    }
+}
+
+impl TryFrom<Value> for BencodeString {
+    type Error = ();
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::String(string) = value {
+            return Ok(string)
+        }
+        Err(())
+    }
+}
+
+impl TryFrom<Value> for BencodeList {
+    type Error = ();
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::List(list) = value {
+            return Ok(list)
+        }
+        Err(())
+    }
+}
+
+impl TryFrom<Value> for BencodeDict {
+    type Error = ();
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Dict(dict) = value {
+            return Ok(dict)
+        }
+        Err(())
+    }
 }
 
 impl From<Vec<u8>> for Value {
@@ -205,6 +275,15 @@ mod tests {
     }
 
     #[test]
+    fn parse_zero_string() {
+        let data = b"0:";
+        let mut parser = BencodeDecoder::new(data);
+        let str = parser.parse_str();
+        assert_eq!(str, Some(Vec::from("")));
+        assert_eq!(parser.data.len(), 0);
+    }
+
+    #[test]
     fn parse_invalid_string() {
         let data = b"5:abfd";
         let mut parser = BencodeDecoder::new(data);
@@ -340,5 +419,13 @@ mod tests {
         map.insert(b"second".to_vec(), "go here dgf".to_owned().into());
         encoder.encode(&Dict(map));
         assert_eq!(vec.as_slice(), b"d5:firsti3546e6:second11:go here dgfe");
+    }
+
+    #[test]
+    fn into_vec() {
+        let mut map: BencodeDict = BTreeMap::new();
+        map.insert(b"first".to_vec(), 3546.into());
+        map.insert(b"second".to_vec(), "go here dgf".to_owned().into());
+        assert_eq!(crate::into_vec(&Dict(map)).as_slice(), b"d5:firsti3546e6:second11:go here dgfe");
     }
 }

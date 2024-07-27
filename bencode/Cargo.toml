@@ -1,0 +1,12 @@
+[package]
+name = "bencode"
+version = "0.1.0"
+authors = ["VxDxK"]
+edition = "2021"
+description = "Implementation of bencode parser"
+repository = "https://github.com/VxDxK/vdk-torrent-client"
+keywords = ["bencode"]
+categories = ["encoding", "parser-implementations", "parsing"]
+
+[dependencies]
+thiserror = "1.0"

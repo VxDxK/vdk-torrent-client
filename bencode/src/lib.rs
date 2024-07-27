@@ -1,3 +1,5 @@
+pub mod from_bencode;
+
 use std::{i64, usize};
 use std::collections::BTreeMap;
 use std::str::{from_utf8, FromStr, Utf8Error};
@@ -79,7 +81,7 @@ pub enum BencodeError {
     InvalidDictionary,
     #[error("Invalid UTF-8 sequence: {0}")]
     InvalidUTF8(#[from] Utf8Error),
-    #[error("Invalid type {0} expected {1}")]
+    #[error("Invalid type found {0} expected {1}")]
     InvalidType(&'static str, &'static str),
 }
 

@@ -1,0 +1,10 @@
+[package]
+name = "bencode-derive"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bencode = {path = "../bencode"}
+syn = "2.0"
+quote = "1.0"
+thiserror = "1.0"

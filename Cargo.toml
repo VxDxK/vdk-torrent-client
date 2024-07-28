@@ -3,6 +3,5 @@ resolver = "2"
 
 members = [
     "bencode",
-    "bencode-derive",
     "torrent-client"
 ]

@@ -2,11 +2,12 @@ use std::fs::File;
 use std::io::Read;
 use clap::Parser;
 use bencode::BencodeDict;
-use bencode::from_bencode::FromBencode;
+use crate::client::{Client, Config, PeerId};
 use crate::file::TorrentFile;
 
 mod file;
 mod cli;
+mod client;
 
 fn main() {
     let cli = cli::Args::parse();
@@ -15,6 +16,6 @@ fn main() {
     file.read_to_end(&mut data).unwrap();
     let value: BencodeDict = bencode::from_slice(data.as_mut_slice()).unwrap().try_into().unwrap();
     let torrent  = TorrentFile::from_bencode(value).unwrap();
-    print!("{torrent:#?}");
-    // String::from_bencode(bencode::Value::Dict(value)).unwrap();
-}
+    let client = Client::new(PeerId::random(), Config::default());
+    client.download(torrent);
+}  

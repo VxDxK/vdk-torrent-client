@@ -1,5 +1,3 @@
-pub mod from_bencode;
-
 use std::{i64, usize};
 use std::collections::BTreeMap;
 use std::str::{from_utf8, FromStr, Utf8Error};
@@ -125,8 +123,15 @@ impl TryFrom<Value> for BencodeDict {
     }
 }
 
-impl From<Vec<u8>> for Value {
-    fn from(value: Vec<u8>) -> Self {
+impl TryFrom<Value> for String {
+    type Error = BencodeError;
+    fn try_from(value: Value) -> std::result::Result<Self, Self::Error> {
+        Ok(String::from_utf8(BencodeString::try_from(value)?).map_err(|e| e.utf8_error())?)
+    }
+}
+
+impl From<BencodeString> for Value {
+    fn from(value: BencodeString) -> Self {
         Value::String(value)
     }
 }
@@ -238,45 +243,49 @@ pub fn into_vec(value: &Value) -> Vec<u8> {
     res
 }
 
-struct BencodeEncoder<'a> {
+pub struct BencodeEncoder<'a> {
     data: &'a mut Vec<u8>,
 }
 
 impl<'a> BencodeEncoder<'a> {
-    fn new(data: &'a mut Vec<u8>) -> Self {
+    pub fn new(data: &'a mut Vec<u8>) -> Self {
         Self { data }
     }
 
-    fn encode(&mut self, value: &Value) {
+    pub fn encode(&mut self, value: &Value) {
         match value {
             Value::Int(int) => self.encode_int(int.to_owned()),
             Value::String(str) => self.encode_bytes(str.as_slice()),
-            Value::List(list) => {
-                self.data.push(b'l');
-                for item in list { self.encode(item) }
-                self.data.push(b'e');
-            }
-            Value::Dict(dict) => {
-                self.data.push(b'd');
-                for (key, value) in dict {
-                    self.encode_bytes(key);
-                    self.encode(value);
-                }
-                self.data.push(b'e');
-            }
+            Value::List(list) => self.encode_list(list),
+            Value::Dict(dict) => self.encode_dict(dict)
         }
     }
 
-    fn encode_int(&mut self, int: BencodeInt) {
+    pub fn encode_int(&mut self, int: BencodeInt) {
         self.data.push(b'i');
         self.data.extend_from_slice(int.to_string().as_bytes());
         self.data.push(b'e');
     }
 
-    fn encode_bytes(&mut self, bytes: &[u8]) {
+    pub fn encode_bytes(&mut self, bytes: &[u8]) {
         self.data.extend_from_slice(bytes.len().to_string().as_bytes());
         self.data.push(b':');
         self.data.extend_from_slice(bytes);
+    }
+
+    pub fn encode_list(&mut self, list: &BencodeList) {
+        self.data.push(b'l');
+        for item in list { self.encode(item) }
+        self.data.push(b'e');
+    }
+    
+    pub fn encode_dict(&mut self, dict: &BencodeDict) {
+        self.data.push(b'd');
+        for (key, value) in dict {
+            self.encode_bytes(key);
+            self.encode(value);
+        }
+        self.data.push(b'e');
     }
 }
 

@@ -1,7 +1,7 @@
-use std::borrow::Borrow;
 use percent_encoding::{NON_ALPHANUMERIC, percent_encode};
-use rand::RngCore;
+use bencode::{BencodeDict, Value};
 use crate::file::TorrentFile;
+use crate::peer::PeerId;
 
 #[derive(Default, Debug)]
 pub struct Config {}
@@ -12,32 +12,6 @@ pub struct Client {
     config: Config,
 }
 
-#[derive(Debug)]
-pub struct PeerId([u8; 20]);
-
-impl PeerId {
-    pub fn new(peer_id: [u8; 20]) -> Self {
-        Self(peer_id)
-    }
-
-    pub fn random() -> Self {
-        let mut peer_id = [0; 20];
-        rand::thread_rng().fill_bytes(&mut peer_id);
-        Self::new(peer_id)
-    }
-}
-
-impl Borrow<[u8]> for PeerId {
-    fn borrow(&self) -> &[u8] {
-        self.0.as_slice()
-    }
-}
-
-impl Default for PeerId {
-    fn default() -> Self {
-        Self::random()
-    }
-}
 
 impl Client {
     pub fn new(peer_id: PeerId, config: Config) -> Self {
@@ -45,22 +19,39 @@ impl Client {
     }
 
     pub fn download(&self, meta_info: TorrentFile) {
-        let client = reqwest::blocking::Client::new();
+        let client = reqwest::blocking::ClientBuilder::new()
+            .user_agent("reqwest/0.12")
+            .build().unwrap();
 
-        let response = client.get(meta_info.announce)
+        let info_hash_url_encoded = percent_encode(meta_info.info.info_hash.as_slice(), NON_ALPHANUMERIC);
+        let peer_id_url_encoded = percent_encode(self.peer_id.0.as_slice(), NON_ALPHANUMERIC);
+
+        let mut url = meta_info.announce.clone();
+        url.set_query(Some(format!("info_hash={}&peer_id={}", info_hash_url_encoded, peer_id_url_encoded).as_str()));
+
+        println!("url: {url}");
+
+        let response = client.get(url)
             .query(&[
-                ("info_hash", percent_encode(meta_info.info.info_hash.as_slice(), NON_ALPHANUMERIC).to_string()),
-                ("peer_id", percent_encode(self.peer_id.borrow(), NON_ALPHANUMERIC).to_string()),
-            ])
-            .query(&[
-                ("port", "6139"),
-                ("uploaded", "0"),
-                ("downloaded", "0"),
-                ("compact", "1"),
-                ("left", "0"),
+                ("port", 6881),
+                ("uploaded", 0),
+                ("downloaded", 0),
+                ("compact", 1),
+                ("left", 4697096192i64),
             ])
             .send().unwrap();
         println!("url: {}", response.url());
         println!("response: {:#?}", response);
+        let bencode: BencodeDict = bencode::from_slice(response.bytes().unwrap().to_vec().as_slice()).unwrap().try_into().unwrap();
+        for (k, v) in bencode {
+            match v {
+                Value::String(_) => {
+                    println!("{}: {:?}", String::from_utf8(k).unwrap(), String::try_from(v));
+                }
+                _ => {
+                    println!("{}: {:#?}", String::from_utf8(k).unwrap(), v);
+                }
+            }
+        }
     }
 }

@@ -5,11 +5,11 @@ use thiserror::Error;
 use url::Url;
 
 use bencode::{BencodeEncoder, BencodeError, BencodeList, BencodeString, Value};
+use torrent_client::Sha1;
 
 use crate::file::TorrentError::{InvalidInfoHash, MissingField};
 
 type Result<T> = std::result::Result<T, TorrentError>;
-type Sha1 = [u8; 20];
 
 #[derive(Debug)]
 pub struct TorrentFile {

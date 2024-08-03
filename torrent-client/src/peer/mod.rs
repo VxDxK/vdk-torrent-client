@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 use std::net::SocketAddr;
 use rand::RngCore;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PeerId(pub(crate) [u8; 20]);
 
 
@@ -26,6 +26,12 @@ impl PeerId {
 
 impl Borrow<[u8]> for PeerId {
     fn borrow(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+}
+
+impl AsRef<[u8]> for PeerId {
+    fn as_ref(&self) -> &[u8] {
         self.0.as_slice()
     }
 }

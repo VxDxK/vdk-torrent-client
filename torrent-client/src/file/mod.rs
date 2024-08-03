@@ -41,8 +41,6 @@ pub enum TorrentError {
     Url(#[from] url::ParseError),
     #[error("Missing field: {0}")]
     MissingField(String),
-    #[error("Invalid field type: {0}")]
-    InvalidFieldType(String),
     #[error("Invalid pieces length")]
     InvalidPiecesLength,
     #[error("Invalid info hash")]

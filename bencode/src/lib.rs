@@ -1,8 +1,10 @@
 use std::{i64, usize};
 use std::collections::BTreeMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 use std::str::{from_utf8, FromStr, Utf8Error};
+
 use thiserror::Error;
+
 use crate::BencodeError::{InvalidDictionary, InvalidFormat, InvalidInteger, InvalidList, InvalidString, InvalidType, UnexpectedEOF};
 
 pub type BencodeInt = i64;

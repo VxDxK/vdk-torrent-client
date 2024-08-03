@@ -1,11 +1,14 @@
-use std::{i64, usize};
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::str::{from_utf8, FromStr, Utf8Error};
+use std::{i64, usize};
 
 use thiserror::Error;
 
-use crate::BencodeError::{InvalidDictionary, InvalidFormat, InvalidInteger, InvalidList, InvalidString, InvalidType, UnexpectedEOF};
+use crate::BencodeError::{
+    InvalidDictionary, InvalidFormat, InvalidInteger, InvalidList, InvalidString, InvalidType,
+    UnexpectedEOF,
+};
 
 pub type BencodeInt = i64;
 pub type BencodeString = Vec<u8>;
@@ -25,7 +28,6 @@ static INTEGER_NAME: &str = "Integer";
 static STRING_NAME: &str = "String";
 static LIST_NAME: &str = "List";
 static DICTIONARY_NAME: &str = "Dictionary";
-
 
 impl Value {
     pub fn name(&self) -> &'static str {
@@ -171,12 +173,17 @@ impl<'a> BencodeDecoder<'a> {
             match byte {
                 b':' => break,
                 b'0'..=b'9' => len_str += 1,
-                _ => return Err(InvalidString)
+                _ => return Err(InvalidString),
             }
         }
-        let len = usize::from_str(from_utf8(self.data.get(..len_str).ok_or(UnexpectedEOF)?)?).map_err(|e| InvalidFormat(format!("{e}")))?;
+        let len = usize::from_str(from_utf8(self.data.get(..len_str).ok_or(UnexpectedEOF)?)?)
+            .map_err(|e| InvalidFormat(format!("{e}")))?;
         let start_of_string = len_str + 1;
-        let vec_data = self.data.get(start_of_string..start_of_string + len).ok_or(UnexpectedEOF)?.to_vec();
+        let vec_data = self
+            .data
+            .get(start_of_string..start_of_string + len)
+            .ok_or(UnexpectedEOF)?
+            .to_vec();
         self.data = &self.data[start_of_string + len..];
         Ok(vec_data)
     }
@@ -188,18 +195,21 @@ impl<'a> BencodeDecoder<'a> {
                 (b'i', 0) => continue,
                 (b'0'..=b'9', _) | (b'-', 1) => len += 1,
                 (b'e', _) => break,
-                _ => return Err(InvalidInteger)
+                _ => return Err(InvalidInteger),
             }
         }
 
-        let ans = i64::from_str(from_utf8(self.data.get(1..1 + len).ok_or(UnexpectedEOF)?)?).map_err(|e| InvalidFormat(format!("{e}")))?;
+        let ans = i64::from_str(from_utf8(self.data.get(1..1 + len).ok_or(UnexpectedEOF)?)?)
+            .map_err(|e| InvalidFormat(format!("{e}")))?;
         self.data = &self.data.get(len + 2..).ok_or(UnexpectedEOF)?;
         Ok(ans)
     }
 
     fn parse_list(&mut self) -> Result<BencodeList> {
         match self.data.first() {
-            Some(b'l') => { self.data = &self.data[1..]; }
+            Some(b'l') => {
+                self.data = &self.data[1..];
+            }
             _ => return Err(InvalidList),
         }
         let mut ans: BencodeList = Vec::new();
@@ -234,7 +244,7 @@ impl<'a> BencodeDecoder<'a> {
             b'l' => self.parse_list().map(Value::List),
             b'd' => self.parse_dict().map(Value::Dict),
             b'0'..=b'9' => self.parse_str().map(Value::String),
-            char => Err(InvalidFormat(format!("unexpected char, code: {char}")))
+            char => Err(InvalidFormat(format!("unexpected char, code: {char}"))),
         }
     }
 }
@@ -260,7 +270,7 @@ impl<'a> BencodeEncoder<'a> {
             Value::Int(int) => self.encode_int(int.to_owned()),
             Value::String(str) => self.encode_bytes(str.as_slice()),
             Value::List(list) => self.encode_list(list),
-            Value::Dict(dict) => self.encode_dict(dict)
+            Value::Dict(dict) => self.encode_dict(dict),
         }
     }
 
@@ -271,17 +281,20 @@ impl<'a> BencodeEncoder<'a> {
     }
 
     pub fn encode_bytes(&mut self, bytes: &[u8]) {
-        self.data.extend_from_slice(bytes.len().to_string().as_bytes());
+        self.data
+            .extend_from_slice(bytes.len().to_string().as_bytes());
         self.data.push(b':');
         self.data.extend_from_slice(bytes);
     }
 
     pub fn encode_list(&mut self, list: &BencodeList) {
         self.data.push(b'l');
-        for item in list { self.encode(item) }
+        for item in list {
+            self.encode(item)
+        }
         self.data.push(b'e');
     }
-    
+
     pub fn encode_dict(&mut self, dict: &BencodeDict) {
         self.data.push(b'd');
         for (key, value) in dict {
@@ -354,7 +367,10 @@ mod tests {
         let data = Vec::from(b"l4:spami42ee");
         let mut parser = BencodeDecoder::new(data.as_slice());
         let list = parser.parse_list();
-        assert_eq!(list, Ok(vec![Value::String(Vec::from(b"spam")), Value::Int(42)]));
+        assert_eq!(
+            list,
+            Ok(vec![Value::String(Vec::from(b"spam")), Value::Int(42)])
+        );
         assert_eq!(parser.data.len(), 0);
     }
 
@@ -372,17 +388,24 @@ mod tests {
         let mut parser = BencodeDecoder::new(data.as_slice());
         let list = parser.parse_list();
 
-        assert_eq!(list, Err(InvalidFormat("unexpected char, code: 117".to_string())));
+        assert_eq!(
+            list,
+            Err(InvalidFormat("unexpected char, code: 117".to_string()))
+        );
     }
 
     #[test]
     fn parse_shizo_inherit_structs() {
         let data = b"lli43e5:abobaed3:bari52eee";
         let list = from_slice(data);
-        let map: BencodeDict = BTreeMap::from([
-            (b"bar".to_vec(), Int(52))
-        ]);
-        assert_eq!(list, Ok(List(vec![List(vec![Int(43), String(b"aboba".to_vec())]), Dict(map)])));
+        let map: BencodeDict = BTreeMap::from([(b"bar".to_vec(), Int(52))]);
+        assert_eq!(
+            list,
+            Ok(List(vec![
+                List(vec![Int(43), String(b"aboba".to_vec())]),
+                Dict(map)
+            ]))
+        );
     }
 
     #[test]
@@ -391,7 +414,7 @@ mod tests {
         let mut parser = BencodeDecoder::new(data.as_slice());
         let map_dict = BencodeDict::from([
             (b"bar".to_vec(), String(b"spam".to_vec())),
-            (b"foo".to_vec(), Int(42))
+            (b"foo".to_vec(), Int(42)),
         ]);
         let dict = parser.parse_dict();
         assert_eq!(dict, Ok(map_dict));
@@ -462,6 +485,9 @@ mod tests {
         let mut map: BencodeDict = BTreeMap::new();
         map.insert(b"first".to_vec(), 3546.into());
         map.insert(b"second".to_vec(), "go here dgf".to_owned().into());
-        assert_eq!(crate::into_vec(&Dict(map)).as_slice(), b"d5:firsti3546e6:second11:go here dgfe");
+        assert_eq!(
+            crate::into_vec(&Dict(map)).as_slice(),
+            b"d5:firsti3546e6:second11:go here dgfe"
+        );
     }
 }

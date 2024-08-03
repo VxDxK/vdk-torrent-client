@@ -1,13 +1,15 @@
+use crate::peer::{Peer, PeerId};
+use crate::tracker::TrackerError::{
+    AnnounceRequestError, InternalError, TrackerResponse, UnsupportedProtocol,
+};
+use bencode::{BencodeDict, Value};
+use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use std::fmt::{Display, Formatter};
 use std::net::IpAddr;
 use std::time::Duration;
-use percent_encoding::{NON_ALPHANUMERIC, percent_encode};
 use thiserror::Error;
-use url::Url;
-use bencode::{BencodeDict, Value};
 use torrent_client::Sha1;
-use crate::peer::{Peer, PeerId};
-use crate::tracker::TrackerError::{AnnounceRequestError, InternalError, TrackerResponse, UnsupportedProtocol};
+use url::Url;
 
 type Result<T> = std::result::Result<T, TrackerError>;
 
@@ -25,7 +27,7 @@ pub enum TrackerError {
     #[error("Announce request error {0}")]
     AnnounceRequestError(String),
 
-    #[error("Tracker sent error as answer {0}")]
+    #[error("Tracker sent error as response {0}")]
     TrackerResponse(String),
 }
 
@@ -66,7 +68,17 @@ pub struct AnnounceParameters {
 
 impl AnnounceParameters {
     pub fn new(info_hash: Sha1) -> Self {
-        Self { info_hash, port: 0, uploaded: 0, downloaded: 0, left: 0, request_mode: RequestMode::Verbose, event: None, num_want: None, ip: None }
+        Self {
+            info_hash,
+            port: 0,
+            uploaded: 0,
+            downloaded: 0,
+            left: 0,
+            request_mode: RequestMode::Verbose,
+            event: None,
+            num_want: None,
+            ip: None,
+        }
     }
 
     pub fn set_port(&mut self, port: u16) -> &mut Self {
@@ -103,7 +115,6 @@ impl AnnounceParameters {
     }
 }
 
-
 #[derive(Debug)]
 pub struct AnnounceResponse {
     interval: Duration,
@@ -114,7 +125,6 @@ pub struct AnnounceResponse {
 }
 
 pub struct ScrapeResponse;
-
 
 pub trait TrackerClient {
     fn announce(&self, url: Url, params: AnnounceParameters) -> Result<AnnounceResponse>;
@@ -130,9 +140,13 @@ impl HttpTracker {
     pub fn new(peer_id: &PeerId) -> Result<Self> {
         let http_client = reqwest::blocking::ClientBuilder::new()
             .user_agent("reqwest/0.12")
-            .build().map_err(|x| InternalError(format!("failed to create http client {}", x)))?;
+            .build()
+            .map_err(|x| InternalError(format!("failed to create http client {}", x)))?;
         let encoded_peer_id = percent_encode(peer_id.as_ref(), NON_ALPHANUMERIC).to_string();
-        Ok(Self { http_client, encoded_peer_id })
+        Ok(Self {
+            http_client,
+            encoded_peer_id,
+        })
     }
 
     fn build_announce_url(&self, mut url: Url, request: AnnounceParameters) -> Url {
@@ -152,20 +166,27 @@ impl HttpTracker {
             .append_pair("left", request.left.to_string().as_str());
         match request.request_mode {
             RequestMode::Verbose => {}
-            RequestMode::NoPeerId => { url.query_pairs_mut().append_key_only("no_peer_id"); }
-            RequestMode::Compact => { url.query_pairs_mut().append_pair("compact", "1"); }
+            RequestMode::NoPeerId => {
+                url.query_pairs_mut().append_key_only("no_peer_id");
+            }
+            RequestMode::Compact => {
+                url.query_pairs_mut().append_pair("compact", "1");
+            }
         }
 
         if let Some(event) = request.event {
-            url.query_pairs_mut().append_pair("event", event.to_string().as_str());
+            url.query_pairs_mut()
+                .append_pair("event", event.to_string().as_str());
         }
 
         if let Some(num_want) = request.num_want {
-            url.query_pairs_mut().append_pair("numwant", num_want.to_string().as_str());
+            url.query_pairs_mut()
+                .append_pair("numwant", num_want.to_string().as_str());
         }
 
         if let Some(ip) = request.ip {
-            url.query_pairs_mut().append_pair("ip", ip.to_string().as_str());
+            url.query_pairs_mut()
+                .append_pair("ip", ip.to_string().as_str());
         }
 
         println!("'{url}'");
@@ -174,37 +195,38 @@ impl HttpTracker {
     }
 }
 
-
 impl TrackerClient for HttpTracker {
     fn announce(&self, url: Url, params: AnnounceParameters) -> Result<AnnounceResponse> {
         if !(url.scheme() != "http" || url.scheme() != "https") {
             return Err(UnsupportedProtocol(String::from(url.scheme())));
         }
-        let tracker_response = self.http_client
+        let tracker_response = self
+            .http_client
             .get(self.build_announce_url(url, params))
             .send()
             .map_err(|e| AnnounceRequestError(format!("send request to tracker failed {e}")))?;
 
-        println!("{}", tracker_response.status());
-
-        let mut bencode: BencodeDict = bencode::from_slice(tracker_response.bytes()
-            .map_err(|e| AnnounceRequestError(format!("failed to retrieve response body {e}")))?
-            .to_vec().as_slice())?
-            .try_into()?;
+        let mut bencode: BencodeDict = bencode::from_slice(
+            tracker_response
+                .bytes()
+                .map_err(|e| AnnounceRequestError(format!("failed to retrieve response body {e}")))?
+                .to_vec()
+                .as_slice(),
+        )?
+        .try_into()?;
 
         if let Some(failure_reason) = bencode.remove(b"failure reason".as_ref()) {
             let error = match failure_reason {
-                Value::String(string) => String::from_utf8(string).unwrap_or(String::from("tracker response error, unknown string format")),
-                x => format!("error getting tracker 'failure_reason' reason expected string got {}", x.name()),
+                Value::String(string) => String::from_utf8(string).unwrap_or(String::from(
+                    "tracker response error, unknown string format",
+                )),
+                x => format!(
+                    "error getting tracker 'failure_reason' reason expected string got {}",
+                    x.name()
+                ),
             };
             return Err(TrackerResponse(error));
         }
-
-
-        for (k, v) in bencode {
-            println!("k: '{}' vt: {}", String::from_utf8(k).unwrap(), v.name());
-        }
-
 
         Err(InternalError("unimplemented".to_string()))
     }

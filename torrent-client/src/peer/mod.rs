@@ -1,10 +1,9 @@
+use rand::RngCore;
 use std::borrow::Borrow;
 use std::net::SocketAddr;
-use rand::RngCore;
 
 #[derive(Debug, Clone)]
 pub struct PeerId(pub(crate) [u8; 20]);
-
 
 #[derive(Debug)]
 pub struct Peer {

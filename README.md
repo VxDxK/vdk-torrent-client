@@ -1,1 +1,1 @@
-# Simple torrent client written from scratch
+# torrent client written from scratch

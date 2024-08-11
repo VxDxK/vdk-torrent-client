@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
+use std::num::TryFromIntError;
 use std::str::{from_utf8, FromStr, Utf8Error};
 use std::{i64, usize};
-
 use thiserror::Error;
 
 use crate::BencodeError::{
@@ -86,6 +86,8 @@ pub enum BencodeError {
     InvalidUTF8(#[from] Utf8Error),
     #[error("Invalid type found {0} expected {1}")]
     InvalidType(&'static str, &'static str),
+    #[error("Failed conversion {0}")]
+    IntConversion(#[from] TryFromIntError),
 }
 
 impl TryFrom<Value> for BencodeInt {
@@ -93,6 +95,26 @@ impl TryFrom<Value> for BencodeInt {
     fn try_from(value: Value) -> Result<Self> {
         if let Value::Int(int) = value {
             return Ok(int);
+        }
+        Err(InvalidType(value.name(), INTEGER_NAME))
+    }
+}
+
+impl TryFrom<Value> for u64 {
+    type Error = BencodeError;
+    fn try_from(value: Value) -> Result<Self> {
+        if let Value::Int(int) = value {
+            return Ok(u64::try_from(int)?);
+        }
+        Err(InvalidType(value.name(), INTEGER_NAME))
+    }
+}
+
+impl TryFrom<Value> for usize {
+    type Error = BencodeError;
+    fn try_from(value: Value) -> Result<Self> {
+        if let Value::Int(int) = value {
+            return Ok(usize::try_from(int)?);
         }
         Err(InvalidType(value.name(), INTEGER_NAME))
     }

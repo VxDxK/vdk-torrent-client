@@ -1,11 +1,12 @@
 use crate::peer::{Peer, PeerId};
 use crate::tracker::TrackerError::{
-    AnnounceRequestError, InternalError, TrackerResponse, UnsupportedProtocol,
+    AnnounceRequestError, InternalError, ResponseFormat, TrackerResponse, UnsupportedProtocol,
 };
-use bencode::{BencodeDict, Value};
+use bencode::{BencodeDict, BencodeString, Value};
+use bytes::Buf;
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use std::fmt::{Display, Formatter};
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::time::Duration;
 use thiserror::Error;
 use torrent_client::Sha1;
@@ -29,6 +30,9 @@ pub enum TrackerError {
 
     #[error("Tracker sent error as response {0}")]
     TrackerResponse(String),
+
+    #[error("Error in response format {0}")]
+    ResponseFormat(String),
 }
 
 pub enum TrackerEvent {
@@ -122,6 +126,60 @@ pub struct AnnounceResponse {
     complete: Option<i64>,
     incomplete: Option<i64>,
     peers: Vec<Peer>,
+}
+
+impl AnnounceResponse {
+    pub fn from_bencode(mut bencode_dict: BencodeDict) -> Result<Self> {
+        let interval: u64 = bencode_dict
+            .remove(b"interval".as_slice())
+            .ok_or(ResponseFormat("No 'interval' field".to_string()))?
+            .try_into()?;
+        let interval = Duration::from_secs(interval);
+        let peers = bencode_dict
+            .remove(b"peers".as_slice())
+            .ok_or(ResponseFormat("No 'peers' field".to_string()))?;
+
+        let mut peers_result: Vec<Peer> = Vec::new();
+        match peers {
+            Value::String(string) => {
+                if string.len() % 6 != 0 {
+                    return Err(ResponseFormat(
+                        "peers binary string length is not a multiple of 6".to_string(),
+                    ));
+                }
+                let peers_count = string.len() / 6;
+                let mut bytes = bytes::Bytes::from(string);
+                for _ in 0..peers_count {
+                    let ip = bytes.get_u32();
+                    let port = bytes.get_u16();
+                    let addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::from_bits(ip), port));
+                    peers_result.push(Peer::new(None, addr));
+                }
+            }
+            Value::List(list) => {
+                for value in list {
+                    match value {
+                        Value::Dict(dict) => {}
+                        v => {
+                            return Err(ResponseFormat(format!(
+                                "peers list of dicts format error, unexpected {}",
+                                v.name()
+                            )))
+                        }
+                    }
+                }
+            }
+            _ => println!("unknown peers format"),
+        }
+
+        Ok(AnnounceResponse {
+            interval,
+            min_interval: None,
+            complete: None,
+            incomplete: None,
+            peers: peers_result,
+        })
+    }
 }
 
 pub struct ScrapeResponse;
@@ -228,7 +286,11 @@ impl TrackerClient for HttpTracker {
             return Err(TrackerResponse(error));
         }
 
-        Err(InternalError("unimplemented".to_string()))
+        for (k, v) in &bencode {
+            println!("{} {}", String::from_utf8(k.clone()).unwrap(), v.name())
+        }
+
+        AnnounceResponse::from_bencode(bencode)
     }
 
     fn scrape(&self) -> Result<ScrapeResponse> {

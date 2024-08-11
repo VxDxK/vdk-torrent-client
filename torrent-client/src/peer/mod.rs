@@ -1,9 +1,10 @@
 use rand::RngCore;
 use std::borrow::Borrow;
 use std::net::SocketAddr;
+use std::ops::Deref;
 
 #[derive(Debug, Clone)]
-pub struct PeerId(pub(crate) [u8; 20]);
+pub struct PeerId([u8; 20]);
 
 #[derive(Debug)]
 pub struct Peer {
@@ -35,8 +36,22 @@ impl AsRef<[u8]> for PeerId {
     }
 }
 
+impl Deref for PeerId {
+    type Target = [u8; 20];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl Default for PeerId {
     fn default() -> Self {
         Self::new([0; 20])
+    }
+}
+
+impl Peer {
+    pub fn new(peer_id: Option<PeerId>, addr: SocketAddr) -> Self {
+        Self { peer_id, addr }
     }
 }

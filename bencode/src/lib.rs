@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 use std::num::TryFromIntError;
 use std::str::{from_utf8, FromStr, Utf8Error};
 use std::{i64, usize};
@@ -16,7 +16,7 @@ pub type BencodeList = Vec<Value>;
 pub type BencodeDict = BTreeMap<BencodeString, Value>;
 pub type Result<T> = std::result::Result<T, BencodeError>;
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum Value {
     Int(BencodeInt),
     String(BencodeString),
@@ -68,6 +68,17 @@ impl Value {
     }
 }
 
+impl Debug for Value {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Int(v) => write!(f, "bencode::Int({})", v),
+            Value::String(v) => write!(f, "bencode::String({})", String::from_utf8_lossy(v)),
+            Value::List(v) => write!(f, "bencode::List({:?})", v),
+            Value::Dict(v) => write!(f, "bencode::Dict({:?})", v),
+        }
+    }
+}
+
 #[derive(Error, Debug, PartialEq)]
 pub enum BencodeError {
     #[error("Invalid format {0}")]
@@ -100,6 +111,7 @@ impl TryFrom<Value> for BencodeInt {
     }
 }
 
+// Replace with macro
 impl TryFrom<Value> for u64 {
     type Error = BencodeError;
     fn try_from(value: Value) -> Result<Self> {
@@ -115,6 +127,16 @@ impl TryFrom<Value> for usize {
     fn try_from(value: Value) -> Result<Self> {
         if let Value::Int(int) = value {
             return Ok(usize::try_from(int)?);
+        }
+        Err(InvalidType(value.name(), INTEGER_NAME))
+    }
+}
+
+impl TryFrom<Value> for u16 {
+    type Error = BencodeError;
+    fn try_from(value: Value) -> Result<Self> {
+        if let Value::Int(int) = value {
+            return Ok(Self::try_from(int)?);
         }
         Err(InvalidType(value.name(), INTEGER_NAME))
     }

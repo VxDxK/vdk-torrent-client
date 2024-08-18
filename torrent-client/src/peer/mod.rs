@@ -8,8 +8,8 @@ pub struct PeerId([u8; 20]);
 
 #[derive(Debug)]
 pub struct Peer {
-    peer_id: Option<PeerId>,
-    addr: SocketAddr,
+    pub peer_id: Option<PeerId>,
+    pub addr: SocketAddr,
 }
 
 impl PeerId {

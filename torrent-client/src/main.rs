@@ -33,5 +33,6 @@ fn main() {
     let tracker = Box::new(HttpTracker::new(&client_id).unwrap());
     let client = Client::new(client_id, Config::default(), tracker);
 
-    client.download(torrent);
+    let res = client.download(torrent);
+    println!("{res:#?}");
 }

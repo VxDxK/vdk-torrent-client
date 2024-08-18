@@ -93,7 +93,10 @@ impl Info {
         if pieces.len() % 20 != 0 {
             return Err(InvalidInfoHash);
         }
-        // let pieces: Vec<&[u8]> = pieces.chunks_exact(20).collect();
+        let pieces: Vec<[u8; 20]> = pieces
+            .chunks_exact(20)
+            .map(|chunk| <[u8; 20]>::try_from(chunk).unwrap())
+            .collect();
 
         let mut files = vec![];
         if let Some(Value::Int(length)) = dict.get(bss!(b"length")) {
@@ -118,7 +121,7 @@ impl Info {
             name,
             info_hash,
             piece_length,
-            pieces: vec![],
+            pieces,
         })
     }
 }

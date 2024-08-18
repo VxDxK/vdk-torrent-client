@@ -2,7 +2,7 @@ use crate::peer::{Peer, PeerId};
 use crate::tracker::TrackerError::{
     AnnounceRequestError, InternalError, ResponseFormat, TrackerResponse, UnsupportedProtocol,
 };
-use bencode::{BencodeDict, BencodeString, Value};
+use bencode::{BencodeDict, Value};
 use bytes::Buf;
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use std::fmt::{Display, Formatter};
@@ -33,6 +33,9 @@ pub enum TrackerError {
 
     #[error("Error in response format {0}")]
     ResponseFormat(String),
+
+    #[error("Mismatching type of field {0}")]
+    TypeMismatch(String),
 }
 
 pub enum TrackerEvent {
@@ -121,11 +124,11 @@ impl AnnounceParameters {
 
 #[derive(Debug)]
 pub struct AnnounceResponse {
-    interval: Duration,
-    min_interval: Option<Duration>,
-    complete: Option<i64>,
-    incomplete: Option<i64>,
-    peers: Vec<Peer>,
+    pub interval: Duration,
+    pub min_interval: Option<Duration>,
+    pub complete: Option<i64>,
+    pub incomplete: Option<i64>,
+    pub peers: Vec<Peer>,
 }
 
 impl AnnounceResponse {
@@ -159,7 +162,33 @@ impl AnnounceResponse {
             Value::List(list) => {
                 for value in list {
                     match value {
-                        Value::Dict(dict) => {}
+                        Value::Dict(mut dict) => {
+                            let peer_id = dict
+                                .remove(b"peer id".as_slice())
+                                .map(|x| {
+                                    if let Value::String(s) = x {
+                                        Some(PeerId::new(s.try_into().ok()?))
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .flatten();
+                            let ip: String = dict
+                                .remove(b"ip".as_slice())
+                                .ok_or(ResponseFormat(
+                                    "No 'ip' field found in dictionary form".to_string(),
+                                ))?
+                                .try_into()?;
+                            let ip = ip.parse::<IpAddr>().unwrap();
+                            let port: u16 = dict
+                                .remove(b"port".as_slice())
+                                .ok_or(ResponseFormat(
+                                    "No 'port' filed found in dictionary form".to_string(),
+                                ))?
+                                .try_into()?;
+                            let addr = SocketAddr::new(ip, port);
+                            peers_result.push(Peer::new(peer_id, addr));
+                        }
                         v => {
                             return Err(ResponseFormat(format!(
                                 "peers list of dicts format error, unexpected {}",

@@ -5,9 +5,9 @@ use thiserror::Error;
 use url::Url;
 
 use bencode::{BencodeEncoder, BencodeError, BencodeList, BencodeString, Value};
-use torrent_client::Sha1;
 
 use crate::file::TorrentError::{IntegerOutOfBound, InvalidInfoHash, MissingField};
+use crate::util::Sha1;
 
 type Result<T> = std::result::Result<T, TorrentError>;
 
@@ -115,7 +115,6 @@ impl Info {
                 files.push(File::from_bencode(file.try_into()?)?);
             }
         }
-        // TODO: add pieces field
         Ok(Info {
             files,
             name,

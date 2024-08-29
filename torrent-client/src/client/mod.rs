@@ -1,10 +1,12 @@
 use crate::file::TorrentFile;
+use crate::peer::connection::PeerConnection;
 use crate::peer::PeerId;
 use crate::tracker::{AnnounceParameters, RequestMode, TrackerClient, TrackerError};
 use rand::seq::SliceRandom;
-use std::io::{Read, Write};
+use std::collections::VecDeque;
 use std::net::TcpStream;
-use std::str::from_utf8;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -15,7 +17,18 @@ pub enum ClientError {
 type Result<T> = std::result::Result<T, ClientError>;
 
 #[derive(Default, Debug)]
-pub struct Config {}
+pub struct Config {
+    connection_numbers: usize,
+}
+
+impl Config {
+    pub fn new(connection_numbers: usize) -> Self {
+        if connection_numbers == 0 {
+            panic!("connection numbers cannot be zero")
+        }
+        Self { connection_numbers }
+    }
+}
 
 pub struct Client {
     client_id: PeerId,
@@ -41,28 +54,42 @@ impl Client {
         let mut distribution = self.tracker_client.announce(meta.announce, params)?;
         let mut rng = rand::thread_rng();
         distribution.peers.shuffle(&mut rng);
-        let peer = distribution.peers.pop().unwrap();
+        let peers = Arc::new(Mutex::new(VecDeque::from(distribution.peers)));
+        let mut handles = vec![];
+        for worker_id in 0..self.config.connection_numbers {
+            let peers_a = peers.clone();
+            let client_id = self.client_id.clone();
+            let handle = std::thread::spawn(move || {
+                let mut q = peers_a.lock().unwrap();
+                if q.len() == 0 {
+                    println!("thread {worker_id} closes due no peers");
+                }
+                let peer = q.pop_back().unwrap();
+                drop(q);
+                println!("{:#?}", peer);
 
-        println!("{:#?}", peer);
-        let mut message = Vec::new();
-        message.push(19u8);
-        message.extend_from_slice(b"BitTorrent protocol");
-        message.extend_from_slice(b"\0\0\0\0\0\0\0\0");
-        message.extend_from_slice(meta.info.info_hash.as_slice());
-        message.extend_from_slice(self.client_id.as_slice());
-        for byte in &message {
-            print!("\\x{:0x} ", byte);
+                println!();
+                let connection = TcpStream::connect_timeout(&peer.addr, Duration::from_secs(5));
+                if connection.is_err() {
+                    println!("timeout ");
+                    return;
+                }
+                let connection = connection.unwrap();
+                let bt_conn = PeerConnection::handshake(
+                    connection,
+                    &meta.info.info_hash.clone(),
+                    &client_id,
+                );
+                match bt_conn {
+                    Ok(_) => println!("conn ok"),
+                    Err(e) => println!("err {}", e.to_string()),
+                }
+            });
+            handles.push(handle);
         }
-        println!();
-        assert_eq!(message.len(), 68);
-        let mut connection = TcpStream::connect(peer.addr).unwrap();
-        println!("connected");
-        let _ = connection.write_all(message.as_slice()).unwrap();
-        let mut response: [u8; 68] = [0; 68];
-        let read = connection.read(response.as_mut_slice()).unwrap();
-        println!("{read}");
-        println!("{:?}", from_utf8(response.as_slice()[48..68].as_ref()));
-
+        while let Some(cur_thread) = handles.pop() {
+            cur_thread.join().unwrap();
+        }
         Ok(())
     }
 }

@@ -2,6 +2,7 @@ use crate::peer::{Peer, PeerId};
 use crate::tracker::TrackerError::{
     AnnounceRequestError, InternalError, ResponseFormat, TrackerResponse, UnsupportedProtocol,
 };
+use crate::util::Sha1;
 use bencode::{BencodeDict, Value};
 use bytes::Buf;
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
@@ -9,7 +10,6 @@ use std::fmt::{Display, Formatter};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::time::Duration;
 use thiserror::Error;
-use torrent_client::Sha1;
 use url::Url;
 
 type Result<T> = std::result::Result<T, TrackerError>;

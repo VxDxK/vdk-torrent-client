@@ -1,9 +1,11 @@
+pub mod connection;
+
 use rand::RngCore;
 use std::borrow::Borrow;
 use std::net::SocketAddr;
 use std::ops::Deref;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PeerId([u8; 20]);
 
 #[derive(Debug)]

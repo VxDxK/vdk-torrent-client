@@ -12,6 +12,7 @@ mod client;
 mod file;
 mod peer;
 mod tracker;
+mod util;
 
 fn main() {
     let cli = cli::Args::parse();
@@ -31,7 +32,7 @@ fn main() {
 
     let client_id = PeerId::random();
     let tracker = Box::new(HttpTracker::new(&client_id).unwrap());
-    let client = Client::new(client_id, Config::default(), tracker);
+    let client = Client::new(client_id, Config::new(25), tracker);
 
     let res = client.download(torrent);
     println!("{res:#?}");

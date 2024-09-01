@@ -75,11 +75,8 @@ impl Client {
                     return;
                 }
                 let connection = connection.unwrap();
-                let bt_conn = PeerConnection::handshake(
-                    connection,
-                    &meta.info.info_hash.clone(),
-                    &client_id,
-                );
+                let bt_conn =
+                    PeerConnection::handshake(connection, &meta.info.info_hash.clone(), &client_id);
                 match bt_conn {
                     Ok(_) => println!("conn ok"),
                     Err(e) => println!("err {}", e.to_string()),

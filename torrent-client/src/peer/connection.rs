@@ -92,7 +92,9 @@ impl PeerConnection {
         let _ = tcp_connection.write_all(bytes.as_ref())?;
         let read_bytes = tcp_connection.read(bytes.as_mut())?;
         if read_bytes != 68 {
-            return Err(HandshakeFailed(format!("Invalid bytes count received {read_bytes}")))
+            return Err(HandshakeFailed(format!(
+                "Invalid bytes count received {read_bytes}"
+            )));
         }
 
         let response = HandshakeMessage::from_bytes(bytes)?;
@@ -102,6 +104,19 @@ impl PeerConnection {
             peer_id: response.peer_id,
         })
     }
+}
+
+pub enum Messages {
+    KeepAlive,
+    Choke,
+    UnChoke,
+    Interested,
+    NotInterested,
+    Have,
+    Request,
+    Piece,
+    Cancel,
+    Port
 }
 
 #[cfg(test)]

@@ -1,3 +1,4 @@
+use std::cmp::PartialEq;
 use std::fmt::{format, Display, Formatter};
 use crate::peer::connection::ConnectionError::{HandshakeFailed, MessageId, PayloadLength, Todo, UnexpectedEOF};
 use crate::peer::connection::HandshakeMessageError::{ProtocolString, ProtocolStringLen};
@@ -127,6 +128,12 @@ impl PeerConnection {
         let message = Message::try_from(data.as_slice())?;
         Ok(message)
     }
+
+    pub fn send(&mut self, message: Message) -> Result<()> {
+        let bytes: Vec<u8> = message.into();
+        self.tcp_connection.write_all(bytes.as_slice())?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -207,6 +214,16 @@ impl Display for Message {
             Message::Cancel(_) => write!(f, "Cancel"),
             Message::Port(port) => write!(f, "Port({})", port),
         }
+    }
+}
+
+impl From<Message> for Vec<u8> {
+    fn from(value: Message) -> Self {
+        let mut result = Vec::new();
+        result.extend_from_slice(1u32.to_ne_bytes().as_slice());
+
+
+        result
     }
 }
 

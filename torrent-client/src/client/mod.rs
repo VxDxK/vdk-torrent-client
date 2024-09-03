@@ -1,16 +1,12 @@
 mod worker;
 
+use crate::client::worker::PeerWorker;
 use crate::file::TorrentFile;
-use crate::peer::connection::PeerConnection;
 use crate::peer::PeerId;
 use crate::tracker::{AnnounceParameters, RequestMode, TrackerClient, TrackerError};
 use rand::seq::SliceRandom;
-use std::collections::VecDeque;
-use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use thiserror::Error;
-use crate::client::worker::PeerWorker;
 
 #[derive(Error, Debug)]
 pub enum ClientError {
@@ -54,7 +50,7 @@ impl Client {
             .set_port(6881)
             .set_num_want(Some(100))
             .set_request_mode(RequestMode::Verbose);
-        let mut torrent_info = self.tracker_client.announce(meta.announce.clone(), params)?;
+        let mut torrent_info = self.tracker_client.announce(&meta.announce, params)?;
         torrent_info.peers.shuffle(&mut rand::thread_rng());
         let peers = Arc::new(Mutex::new(torrent_info.peers));
         let mut handles = vec![];

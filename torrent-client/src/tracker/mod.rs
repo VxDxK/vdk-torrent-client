@@ -216,7 +216,7 @@ impl AnnounceResponse {
 pub struct ScrapeResponse;
 
 pub trait TrackerClient {
-    fn announce(&self, url: Url, params: AnnounceParameters) -> Result<AnnounceResponse>;
+    fn announce(&self, url: &Url, params: AnnounceParameters) -> Result<AnnounceResponse>;
     fn scrape(&self) -> Result<ScrapeResponse>;
 }
 
@@ -285,13 +285,13 @@ impl HttpTracker {
 }
 
 impl TrackerClient for HttpTracker {
-    fn announce(&self, url: Url, params: AnnounceParameters) -> Result<AnnounceResponse> {
+    fn announce(&self, url: &Url, params: AnnounceParameters) -> Result<AnnounceResponse> {
         if !(url.scheme() != "http" || url.scheme() != "https") {
             return Err(UnsupportedProtocol(String::from(url.scheme())));
         }
         let tracker_response = self
             .http_client
-            .get(self.build_announce_url(url, params))
+            .get(self.build_announce_url(url.clone(), params))
             .send()
             .map_err(|e| AnnounceRequestError(format!("send request to tracker failed {e}")))?;
 

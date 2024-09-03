@@ -2,7 +2,7 @@ use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use crate::file::TorrentFile;
-use crate::peer::connection::PeerConnection;
+use crate::peer::connection::{Message, PeerConnection};
 use crate::peer::{Peer, PeerId};
 
 pub struct PeerWorker {
@@ -33,7 +33,22 @@ impl PeerWorker {
             loop {
                 match connection.recv() {
                     Ok(message) => {
-                        println!("message {message}")
+                        println!("message {message}");
+                        match message {
+                            Message::KeepAlive => {}
+                            Message::Choke => {}
+                            Message::UnChoke => {
+
+                            }
+                            Message::Interested => {}
+                            Message::NotInterested => {}
+                            Message::Have(_) => {}
+                            Message::Bitfield(_) => {}
+                            Message::Request(_) => {}
+                            Message::Piece(_) => {}
+                            Message::Cancel(_) => {}
+                            Message::Port(_) => {}
+                        }
                     }
                     Err(err) => {
                         println!("error {err:?}")

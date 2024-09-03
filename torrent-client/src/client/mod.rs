@@ -1,3 +1,5 @@
+mod worker;
+
 use crate::file::TorrentFile;
 use crate::peer::connection::PeerConnection;
 use crate::peer::PeerId;
@@ -8,6 +10,7 @@ use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use thiserror::Error;
+use crate::client::worker::PeerWorker;
 
 #[derive(Error, Debug)]
 pub enum ClientError {
@@ -51,36 +54,17 @@ impl Client {
             .set_port(6881)
             .set_num_want(Some(100))
             .set_request_mode(RequestMode::Verbose);
-        let mut distribution = self.tracker_client.announce(meta.announce, params)?;
-        let mut rng = rand::thread_rng();
-        distribution.peers.shuffle(&mut rng);
-        let peers = Arc::new(Mutex::new(VecDeque::from(distribution.peers)));
+        let mut torrent_info = self.tracker_client.announce(meta.announce.clone(), params)?;
+        torrent_info.peers.shuffle(&mut rand::thread_rng());
+        let peers = Arc::new(Mutex::new(torrent_info.peers));
         let mut handles = vec![];
-        for worker_id in 0..self.config.connection_numbers {
-            let peers_a = peers.clone();
-            let client_id = self.client_id.clone();
-            let handle = std::thread::spawn(move || {
-                let mut q = peers_a.lock().unwrap();
-                if q.len() == 0 {
-                    println!("thread {worker_id} closes due no peers");
-                }
-                let peer = q.pop_back().unwrap();
-                drop(q);
-                println!("{:#?}", peer);
 
-                println!();
-                let connection = TcpStream::connect_timeout(&peer.addr, Duration::from_secs(5));
-                if connection.is_err() {
-                    println!("timeout ");
-                    return;
-                }
-                let connection = connection.unwrap();
-                let bt_conn =
-                    PeerConnection::handshake(connection, &meta.info.info_hash.clone(), &client_id);
-                match bt_conn {
-                    Ok(_) => println!("conn ok"),
-                    Err(e) => println!("err {}", e.to_string()),
-                }
+        let meta = Arc::new(meta);
+        let id = Arc::new(self.client_id.clone());
+        for _ in 0..self.config.connection_numbers {
+            let mut worker = PeerWorker::new(peers.clone(), meta.clone(), id.clone());
+            let handle = std::thread::spawn(move || {
+                worker.go();
             });
             handles.push(handle);
         }

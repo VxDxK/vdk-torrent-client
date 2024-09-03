@@ -179,7 +179,9 @@ impl AnnounceResponse {
                                     "No 'ip' field found in dictionary form".to_string(),
                                 ))?
                                 .try_into()?;
-                            let ip = ip.parse::<IpAddr>().unwrap();
+                            let ip = ip.parse::<IpAddr>().map_err(|_| {
+                                ResponseFormat(format!("{ip} is not valid ip address"))
+                            })?;
                             let port: u16 = dict
                                 .remove(b"port".as_slice())
                                 .ok_or(ResponseFormat(
@@ -314,11 +316,6 @@ impl TrackerClient for HttpTracker {
             };
             return Err(TrackerResponse(error));
         }
-
-        for (k, v) in &bencode {
-            println!("{} {}", String::from_utf8(k.clone()).unwrap(), v.name())
-        }
-
         AnnounceResponse::from_bencode(bencode)
     }
 

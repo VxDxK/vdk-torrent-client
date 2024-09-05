@@ -61,8 +61,8 @@ pub enum RequestMode {
     Compact,
 }
 
-pub struct AnnounceParameters {
-    info_hash: Sha1,
+pub struct AnnounceParameters<'a> {
+    info_hash: &'a Sha1,
     port: u16,
     uploaded: usize,
     downloaded: usize,
@@ -73,8 +73,8 @@ pub struct AnnounceParameters {
     ip: Option<IpAddr>,
 }
 
-impl AnnounceParameters {
-    pub fn new(info_hash: Sha1) -> Self {
+impl<'a> AnnounceParameters<'a> {
+    pub fn new(info_hash: &'a Sha1) -> Self {
         Self {
             info_hash,
             port: 0,
@@ -277,9 +277,6 @@ impl HttpTracker {
             url.query_pairs_mut()
                 .append_pair("ip", ip.to_string().as_str());
         }
-
-        println!("'{url}'");
-
         url
     }
 }

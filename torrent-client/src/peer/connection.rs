@@ -1,10 +1,12 @@
-use std::cmp::PartialEq;
-use std::fmt::{format, Display, Formatter};
-use crate::peer::connection::ConnectionError::{HandshakeFailed, MessageId, PayloadLength, Todo, UnexpectedEOF};
+use crate::peer::connection::ConnectionError::{
+    HandshakeFailed, MessageId, PayloadLength, Todo, UnexpectedEOF,
+};
 use crate::peer::connection::HandshakeMessageError::{ProtocolString, ProtocolStringLen};
 use crate::peer::PeerId;
 use crate::util::{BitField, Sha1};
 use bytes::{Buf, BufMut};
+use std::cmp::PartialEq;
+use std::fmt::{format, Display, Formatter};
 use std::io;
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -145,7 +147,11 @@ pub struct BlockRequest {
 
 impl BlockRequest {
     pub fn new(index: u32, begin: u32, length: u32) -> Self {
-        Self { index, begin, length }
+        Self {
+            index,
+            begin,
+            length,
+        }
     }
 }
 
@@ -154,9 +160,13 @@ impl TryFrom<&[u8]> for BlockRequest {
 
     fn try_from(mut value: &[u8]) -> std::result::Result<Self, Self::Error> {
         if value.len() != 12 {
-            return Err(PayloadLength(value.len()))
+            return Err(PayloadLength(value.len()));
         }
-        Ok(BlockRequest::new(value.get_u32_ne(), value.get_u32_ne(), value.get_u32_ne()))
+        Ok(BlockRequest::new(
+            value.get_u32_ne(),
+            value.get_u32_ne(),
+            value.get_u32_ne(),
+        ))
     }
 }
 
@@ -178,9 +188,13 @@ impl TryFrom<&[u8]> for Piece {
 
     fn try_from(mut value: &[u8]) -> std::result::Result<Self, Self::Error> {
         if value.len() < 8 {
-            return Err(PayloadLength(value.len()))
+            return Err(PayloadLength(value.len()));
         }
-        Ok(Piece::new(value.get_u32_ne(), value.get_u32_ne(), value.to_vec()))
+        Ok(Piece::new(
+            value.get_u32_ne(),
+            value.get_u32_ne(),
+            value.to_vec(),
+        ))
     }
 }
 
@@ -221,7 +235,6 @@ impl From<Message> for Vec<u8> {
     fn from(value: Message) -> Self {
         let mut result = Vec::new();
         result.extend_from_slice(1u32.to_ne_bytes().as_slice());
-
 
         result
     }

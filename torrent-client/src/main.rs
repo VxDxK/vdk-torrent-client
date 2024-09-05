@@ -24,15 +24,9 @@ fn main() {
         .try_into()
         .unwrap();
     let torrent = TorrentFile::from_bencode(value).unwrap();
-
-    println!(
-        "{:#?}",
-        torrent.info.files.iter().map(|x| x.length).sum::<usize>()
-    );
-
     let client_id = PeerId::random();
     let tracker = Box::new(HttpTracker::new(&client_id).unwrap());
-    let client = Client::new(client_id, Config::new(25), tracker);
+    let client = Client::new(client_id, Config::new(25), tracker).unwrap();
 
     let res = client.download(torrent);
     println!("{res:#?}");

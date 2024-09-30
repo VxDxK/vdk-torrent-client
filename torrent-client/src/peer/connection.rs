@@ -1,12 +1,11 @@
-use crate::peer::connection::ConnectionError::{
-    HandshakeFailed, MessageId, PayloadLength, Todo, UnexpectedEOF,
-};
+use crate::peer::connection::ConnectionError::*;
 use crate::peer::connection::HandshakeMessageError::{ProtocolString, ProtocolStringLen};
 use crate::peer::PeerId;
 use crate::util::{BitField, Sha1};
 use bytes::{Buf, BufMut};
+use std::borrow::Cow;
 use std::cmp::PartialEq;
-use std::fmt::{format, Display, Formatter};
+use std::fmt::{Display, Formatter};
 use std::io;
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -21,7 +20,7 @@ enum HandshakeMessageError {
     #[error("Invalid protocol string(pstr) length, expected 19, but got {0}")]
     ProtocolStringLen(u8),
     #[error("Unexpected protocol string, expected \"BitTorrent protocol\", but got {0}")]
-    ProtocolString(String),
+    ProtocolString(Cow<'static, str>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -50,9 +49,9 @@ impl HandshakeMessage {
         }
         let pstr: [u8; 19] = raw[1..20].try_into().unwrap();
         if pstr.as_slice() != BIT_TORRENT_PROTOCOL_STRING {
-            return Err(ProtocolString(
+            return Err(ProtocolString(Cow::Owned(
                 String::from_utf8_lossy(pstr.as_slice()).to_string(),
-            ));
+            )));
         }
         let extension_bytes: [u8; 8] = raw[20..28].try_into().expect("Slice with incorrect length");
         let info_hash: [u8; 20] = raw[28..48].try_into().expect("Slice with incorrect length");
@@ -79,7 +78,7 @@ impl From<HandshakeMessage> for Box<[u8; 68]> {
 #[derive(Error, Debug)]
 pub enum ConnectionError {
     #[error("BitTorrent handshake failed {0}")]
-    HandshakeFailed(String),
+    HandshakeFailed(Cow<'static, str>),
     #[error("Error in parsing handshake response {0}")]
     HandshakeResponse(#[from] HandshakeMessageError),
     #[error(transparent)]
@@ -213,6 +212,24 @@ pub enum Message {
     Port(u16),
 }
 
+impl Message {
+    pub fn get_id(&self) -> u8 {
+        match self {
+            Message::KeepAlive => panic!("KeepAlive doesn't have id"),
+            Message::Choke => 0,
+            Message::UnChoke => 1,
+            Message::Interested => 2,
+            Message::NotInterested => 3,
+            Message::Have(_) => 4,
+            Message::Bitfield(_) => 5,
+            Message::Request(_) => 6,
+            Message::Piece(_) => 7,
+            Message::Cancel(_) => 8,
+            Message::Port(_) => 9,
+        }
+    }
+}
+
 impl Display for Message {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -233,8 +250,26 @@ impl Display for Message {
 
 impl From<Message> for Vec<u8> {
     fn from(value: Message) -> Self {
-        let mut result = Vec::new();
-        result.extend_from_slice(1u32.to_ne_bytes().as_slice());
+        use Message::*;
+        let mut result = vec![0; 4];
+        if let KeepAlive = value {
+            return result;
+        }
+        result.extend_from_slice(value.get_id().to_ne_bytes().as_slice());
+        match value {
+            KeepAlive => unreachable!(),
+            Choke | UnChoke | Interested | NotInterested => {
+                // result.extend_from_slice(value.get_id().to_ne_bytes().as_slice())
+            }
+            Have(have) => {}
+            Bitfield(_) => {}
+            Request(_) => {}
+            Piece(_) => {}
+            Cancel(_) => {}
+            Port(_) => {}
+        }
+        let len = (result.len() - 4) as u32;
+        result[0..4].copy_from_slice(len.to_ne_bytes().as_slice());
 
         result
     }
@@ -284,7 +319,7 @@ impl TryFrom<&[u8]> for Message {
 
 #[cfg(test)]
 mod tests {
-    use crate::peer::connection::{HandshakeMessage, BIT_TORRENT_PROTOCOL_STRING};
+    use crate::peer::connection::{HandshakeMessage, Message, BIT_TORRENT_PROTOCOL_STRING};
     use crate::peer::PeerId;
     use bytes::{BufMut, BytesMut};
     use rand::RngCore;
@@ -331,5 +366,12 @@ mod tests {
             HandshakeMessage::from_bytes(bytes.to_vec().try_into().unwrap()).unwrap();
 
         assert_eq!(message_from_bytes, message)
+    }
+
+    #[test]
+    fn keep_alive_to_bytes() {
+        let msg = Message::KeepAlive;
+        let bytes: Vec<u8> = msg.into();
+        assert_eq!(bytes, vec![0; 4])
     }
 }

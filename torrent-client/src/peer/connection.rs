@@ -93,17 +93,13 @@ pub enum ConnectionError {
     Todo,
 }
 
-pub struct PeerConnection {
-    tcp_connection: TcpStream,
+pub struct PeerConnection<T: Read + Write = TcpStream> {
+    transport: T,
     peer_id: PeerId,
 }
 
-impl PeerConnection {
-    pub fn handshake(
-        mut tcp_connection: TcpStream,
-        info_hash: &Sha1,
-        peer_id: &PeerId,
-    ) -> Result<Self> {
+impl<T: Read + Write> PeerConnection<T> {
+    pub fn handshake(mut tcp_connection: T, info_hash: &Sha1, peer_id: &PeerId) -> Result<Self> {
         let mut bytes =
             HandshakeMessage::new([0; 8], info_hash.clone(), peer_id.clone()).to_bytes();
         let _ = tcp_connection.write_all(bytes.as_ref())?;
@@ -111,28 +107,28 @@ impl PeerConnection {
         let response = HandshakeMessage::from_bytes(bytes)?;
 
         Ok(Self {
-            tcp_connection,
+            transport: tcp_connection,
             peer_id: response.peer_id,
         })
     }
 
     pub fn recv(&mut self) -> Result<Message> {
         let mut length_prefix = [0u8; 4];
-        let _ = self.tcp_connection.read_exact(&mut length_prefix)?;
+        let _ = self.transport.read_exact(&mut length_prefix)?;
         let length_prefix = u32::from_be_bytes(length_prefix);
         if length_prefix == 0 {
             return Ok(Message::KeepAlive);
         }
         let mut data = Vec::with_capacity(length_prefix as usize);
         data.resize(length_prefix as usize, 0);
-        let _ = self.tcp_connection.read_exact(data.as_mut_slice())?;
+        let _ = self.transport.read_exact(data.as_mut_slice())?;
         let message = Message::try_from(data.as_slice())?;
         Ok(message)
     }
 
     pub fn send(&mut self, message: Message) -> Result<()> {
         let bytes: Vec<u8> = message.into();
-        self.tcp_connection.write_all(bytes.as_slice())?;
+        self.transport.write_all(bytes.as_slice())?;
         Ok(())
     }
 }
@@ -151,6 +147,14 @@ impl BlockRequest {
             begin,
             length,
         }
+    }
+
+    pub fn to_bytes(self) -> [u8; 12] {
+        let mut bytes = [0u8; 12];
+        bytes[0..4].copy_from_slice(&self.index.to_le_bytes());
+        bytes[4..8].copy_from_slice(&self.begin.to_le_bytes());
+        bytes[8..12].copy_from_slice(&self.length.to_le_bytes());
+        bytes
     }
 }
 
@@ -228,6 +232,28 @@ impl Message {
             Message::Port(_) => 9,
         }
     }
+
+    pub fn to_bytes(self) -> Vec<u8> {
+        use Message::*;
+        let mut result = vec![0; 4];
+        if let KeepAlive = self {
+            return result;
+        }
+        result.extend_from_slice(self.get_id().to_ne_bytes().as_slice());
+        match self {
+            KeepAlive => unreachable!(),
+            Choke | UnChoke | Interested | NotInterested => {}
+            Have(have) => result.extend_from_slice(have.to_ne_bytes().as_slice()),
+            Bitfield(_) => todo!(),
+            Request(req) | Cancel(req) => result.extend_from_slice(req.to_bytes().as_slice()),
+            Piece(_) => todo!(),
+            Port(port) => result.extend_from_slice(port.to_ne_bytes().as_slice()),
+        }
+        let len = (result.len() - 4) as u32;
+        result[0..4].copy_from_slice(len.to_ne_bytes().as_slice());
+
+        result
+    }
 }
 
 impl Display for Message {
@@ -250,28 +276,7 @@ impl Display for Message {
 
 impl From<Message> for Vec<u8> {
     fn from(value: Message) -> Self {
-        use Message::*;
-        let mut result = vec![0; 4];
-        if let KeepAlive = value {
-            return result;
-        }
-        result.extend_from_slice(value.get_id().to_ne_bytes().as_slice());
-        match value {
-            KeepAlive => unreachable!(),
-            Choke | UnChoke | Interested | NotInterested => {
-                // result.extend_from_slice(value.get_id().to_ne_bytes().as_slice())
-            }
-            Have(have) => {}
-            Bitfield(_) => {}
-            Request(_) => {}
-            Piece(_) => {}
-            Cancel(_) => {}
-            Port(_) => {}
-        }
-        let len = (result.len() - 4) as u32;
-        result[0..4].copy_from_slice(len.to_ne_bytes().as_slice());
-
-        result
+        value.to_bytes()
     }
 }
 
@@ -373,5 +378,20 @@ mod tests {
         let msg = Message::KeepAlive;
         let bytes: Vec<u8> = msg.into();
         assert_eq!(bytes, vec![0; 4])
+    }
+
+    #[test]
+    fn empty_body_messages_test() {
+        use Message::*;
+        let messages = vec![Choke, UnChoke, Interested, NotInterested];
+        for message in messages.into_iter() {
+            let bytes = message.clone().to_bytes();
+            let new_message = Message::try_from(bytes.as_slice()[4..].as_ref()).unwrap();
+            assert_eq!(
+                new_message.get_id(),
+                message.get_id(),
+                "{new_message:?} {message:?}"
+            );
+        }
     }
 }

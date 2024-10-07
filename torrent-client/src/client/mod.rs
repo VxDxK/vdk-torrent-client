@@ -1,15 +1,14 @@
 mod worker;
+mod task;
 
 use crate::client::worker::Peering;
 use crate::client::ClientError::InboundConnection;
 use crate::file::{Info, TorrentFile};
 use crate::peer::{Peer, PeerId};
 use crate::tracker::{AnnounceParameters, RequestMode, TrackerClient, TrackerError};
-use crate::util::Sha1;
 use rand::seq::SliceRandom;
-use std::collections::HashMap;
+use std::borrow::Cow;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
-use std::os::unix::raw::mode_t;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
@@ -20,7 +19,7 @@ pub enum ClientError {
     PeersRetrieve(#[from] TrackerError),
 
     #[error("Inbound connection error {0}")]
-    InboundConnection(String),
+    InboundConnection(Cow<'static, str>),
 }
 type Result<T> = std::result::Result<T, ClientError>;
 
@@ -73,7 +72,6 @@ pub struct Client {
     config: Config,
     tracker_client: Box<dyn TrackerClient>,
     inbound: TcpListener,
-    workers: HashMap<Sha1, Leeching>,
 }
 
 impl Client {
@@ -84,13 +82,12 @@ impl Client {
     ) -> Result<Self> {
         let inbound =
             TcpListener::bind(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 6881))
-                .map_err(|e| InboundConnection(e.to_string()))?;
+                .map_err(|e| InboundConnection(Cow::Owned(e.to_string())))?;
         Ok(Self {
             client_id: Arc::new(client_id),
             config,
             tracker_client,
             inbound,
-            workers: HashMap::new(),
         })
     }
 
@@ -99,9 +96,12 @@ impl Client {
         params
             .set_port(6881)
             .set_num_want(Some(100))
-            .set_request_mode(RequestMode::Verbose);
+            .set_request_mode(RequestMode::Compact);
         let mut torrent_info = self.tracker_client.announce(&meta.announce, params)?;
-        Leeching::new(self.client_id.clone(), meta.info, torrent_info.peers);
+        // println!("files: {}", meta.info.files.len());
+        // println!("pieces: {}", meta.info.pieces.len());
+        // println!("piece length: {}", meta.info.piece_length);
+        // Leeching::new(self.client_id.clone(), meta.info, torrent_info.peers);
         Ok(())
     }
 }

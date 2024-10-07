@@ -3,6 +3,7 @@ use std::fmt::{Debug, Formatter};
 use std::num::TryFromIntError;
 use std::str::{from_utf8, FromStr, Utf8Error};
 use std::{i64, usize};
+use std::borrow::Cow;
 use thiserror::Error;
 
 use crate::BencodeError::{
@@ -82,7 +83,7 @@ impl Debug for Value {
 #[derive(Error, Debug, PartialEq)]
 pub enum BencodeError {
     #[error("Invalid format {0}")]
-    InvalidFormat(String),
+    InvalidFormat(Cow<'static, str>),
     #[error("Unexpected end of file")]
     UnexpectedEOF,
     #[error("Invalid integer")]
@@ -221,7 +222,7 @@ impl<'a> BencodeDecoder<'a> {
             }
         }
         let len = usize::from_str(from_utf8(self.data.get(..len_str).ok_or(UnexpectedEOF)?)?)
-            .map_err(|e| InvalidFormat(format!("{e}")))?;
+            .map_err(|e| InvalidFormat(Cow::Owned(e.to_string())))?;
         let start_of_string = len_str + 1;
         let vec_data = self
             .data
@@ -244,7 +245,7 @@ impl<'a> BencodeDecoder<'a> {
         }
 
         let ans = i64::from_str(from_utf8(self.data.get(1..1 + len).ok_or(UnexpectedEOF)?)?)
-            .map_err(|e| InvalidFormat(format!("{e}")))?;
+            .map_err(|e| InvalidFormat(Cow::Owned(e.to_string())))?;
         self.data = &self.data.get(len + 2..).ok_or(UnexpectedEOF)?;
         Ok(ans)
     }
@@ -288,7 +289,7 @@ impl<'a> BencodeDecoder<'a> {
             b'l' => self.parse_list().map(Value::List),
             b'd' => self.parse_dict().map(Value::Dict),
             b'0'..=b'9' => self.parse_str().map(Value::String),
-            char => Err(InvalidFormat(format!("unexpected char, code: {char}"))),
+            char => Err(InvalidFormat(Cow::Owned(format!("unexpected char code: {char}")))),
         }
     }
 }
@@ -434,7 +435,7 @@ mod tests {
 
         assert_eq!(
             list,
-            Err(InvalidFormat("unexpected char, code: 117".to_string()))
+            Err(InvalidFormat(Cow::Borrowed("unexpected char code: 117")))
         );
     }
 

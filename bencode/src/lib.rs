@@ -1,9 +1,9 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter};
 use std::num::TryFromIntError;
 use std::str::{from_utf8, FromStr, Utf8Error};
 use std::{i64, usize};
-use std::borrow::Cow;
 use thiserror::Error;
 
 use crate::BencodeError::{
@@ -246,7 +246,7 @@ impl<'a> BencodeDecoder<'a> {
 
         let ans = i64::from_str(from_utf8(self.data.get(1..1 + len).ok_or(UnexpectedEOF)?)?)
             .map_err(|e| InvalidFormat(Cow::Owned(e.to_string())))?;
-        self.data = &self.data.get(len + 2..).ok_or(UnexpectedEOF)?;
+        self.data = self.data.get(len + 2..).ok_or(UnexpectedEOF)?;
         Ok(ans)
     }
 
@@ -289,7 +289,9 @@ impl<'a> BencodeDecoder<'a> {
             b'l' => self.parse_list().map(Value::List),
             b'd' => self.parse_dict().map(Value::Dict),
             b'0'..=b'9' => self.parse_str().map(Value::String),
-            char => Err(InvalidFormat(Cow::Owned(format!("unexpected char code: {char}")))),
+            char => Err(InvalidFormat(Cow::Owned(format!(
+                "unexpected char code: {char}"
+            )))),
         }
     }
 }

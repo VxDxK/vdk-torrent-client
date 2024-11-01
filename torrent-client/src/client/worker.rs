@@ -1,73 +1,57 @@
 use crate::file::Info;
-use crate::peer::connection::{Message, PeerConnection};
+use crate::peer::connection::{ConnectionError, PeerConnection};
 use crate::peer::{Peer, PeerId};
+use std::collections::VecDeque;
 use std::net::TcpStream;
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 
+pub struct Task {}
+
+pub struct Downloader {
+    peers: VecDeque<Peer>,
+    peer_id: Arc<PeerId>,
+    info: Arc<Info>,
+}
+
+impl Downloader {
+    pub fn run(&mut self) {
+        let peer = self.peers.pop_front().unwrap();
+    }
+
+    pub fn new<T>(peers: T, info: Info) -> Self
+    where
+        T: Into<VecDeque<Peer>>,
+    {
+        Self {
+            peers: peers.into(),
+            peer_id: Arc::new(PeerId::random()),
+            info: Arc::new(info),
+        }
+    }
+}
+
 pub struct Peering {
-    free_peers: Arc<Mutex<mpsc::Receiver<Peer>>>,
-    meta: Arc<Info>,
-    client_id: Arc<PeerId>,
-    choked: bool,
+    received: Arc<Mutex<mpsc::Receiver<Peer>>>,
+    peer_id: Arc<PeerId>,
+    info: Arc<Info>,
 }
 
 impl Peering {
-    fn connect(&mut self, peer: Peer) -> Option<PeerConnection> {
-        let tcp = TcpStream::connect_timeout(&peer.addr, Duration::from_secs(5)).ok()?;
-        let connection =
-            PeerConnection::handshake(tcp, &self.meta.info_hash, &self.client_id).ok()?;
-        Some(connection)
+    fn connect(&self, peer: &Peer) -> Result<PeerConnection, ConnectionError> {
+        let tcp = TcpStream::connect_timeout(&peer.addr, Duration::from_secs(5))?;
+        let connection = PeerConnection::handshake(tcp, &self.info.info_hash, &self.peer_id)?;
+        Ok(connection)
     }
 
-    pub fn go(&mut self) {
-        loop {
-            let guard = self.free_peers.lock().unwrap();
-            let peer = match guard.recv() {
-                Ok(peer) => peer,
-                Err(_) => break,
-            };
-            drop(guard);
-            let mut connection = match self.connect(peer) {
-                None => continue,
-                Some(c) => c,
-            };
-            loop {
-                match connection.recv() {
-                    Ok(message) => {
-                        println!("message {message}");
-                        match message {
-                            Message::KeepAlive => {}
-                            Message::Choke => self.choked = true,
-                            Message::UnChoke => self.choked = false,
-                            Message::Interested => {}
-                            Message::NotInterested => {}
-                            Message::Have(_) => {}
-                            Message::Bitfield(_) => {}
-                            Message::Request(_) => {}
-                            Message::Piece(_) => {}
-                            Message::Cancel(_) => {}
-                            Message::Port(_) => {}
-                        }
-                    }
-                    Err(err) => {
-                        println!("error {err:?}")
-                    }
-                }
-            }
+    fn run(&mut self) {
+        let ch = self.received.lock().unwrap();
+        if let Ok(peer) = ch.recv() {
+            // if let Ok(conn) = self.connect(&peer) {
+            //     self.work(conn);
+            // }
         }
     }
 
-    pub fn new(
-        peers: Arc<Mutex<mpsc::Receiver<Peer>>>,
-        meta: Arc<Info>,
-        client_id: Arc<PeerId>,
-    ) -> Self {
-        Self {
-            free_peers: peers,
-            meta,
-            client_id,
-            choked: true,
-        }
-    }
+    fn work(&mut self, conn: PeerConnection) {}
 }

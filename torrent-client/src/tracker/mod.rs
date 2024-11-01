@@ -165,14 +165,13 @@ impl AnnounceResponse {
                         Value::Dict(mut dict) => {
                             let peer_id = dict
                                 .remove(b"peer id".as_slice())
-                                .map(|x| {
+                                .and_then(|x| {
                                     if let Value::String(s) = x {
                                         Some(PeerId::new(s.try_into().ok()?))
                                     } else {
                                         None
                                     }
-                                })
-                                .flatten();
+                                });
                             let ip: String = dict
                                 .remove(b"ip".as_slice())
                                 .ok_or(ResponseFormat(

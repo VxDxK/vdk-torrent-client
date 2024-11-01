@@ -1,16 +1,14 @@
 mod worker;
-mod task;
 
-use crate::client::worker::Peering;
+use crate::client::worker::Downloader;
 use crate::client::ClientError::InboundConnection;
-use crate::file::{Info, TorrentFile};
+use crate::file::TorrentFile;
 use crate::peer::{Peer, PeerId};
 use crate::tracker::{AnnounceParameters, RequestMode, TrackerClient, TrackerError};
-use rand::seq::SliceRandom;
 use std::borrow::Cow;
+use std::collections::VecDeque;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
-use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -34,36 +32,6 @@ impl Config {
             panic!("connection numbers cannot be zero")
         }
         Self { connection_numbers }
-    }
-}
-
-struct Leeching {
-    free_peers: mpsc::Sender<Peer>,
-    working_peers: Vec<Arc<Peering>>,
-}
-
-impl Leeching {
-    fn new(client_id: Arc<PeerId>, meta: Info, peers: Vec<Peer>) {
-        let (mut sender, receiver) = mpsc::channel::<Peer>();
-        let receiver = Arc::new(Mutex::new(receiver));
-
-        peers.into_iter().for_each(|e| {
-            let _ = sender.send(e);
-        });
-
-        let mut workers = Vec::new();
-
-        let mut meta = Arc::new(meta);
-        for _ in 0..20 {
-            let mut worker = Peering::new(receiver.clone(), meta.clone(), client_id.clone());
-            let worker = std::thread::spawn(move || {
-                worker.go();
-            });
-            workers.push(worker);
-        }
-        while let Some(t) = workers.pop() {
-            t.join().unwrap();
-        }
     }
 }
 
@@ -97,11 +65,12 @@ impl Client {
             .set_port(6881)
             .set_num_want(Some(100))
             .set_request_mode(RequestMode::Compact);
-        let mut torrent_info = self.tracker_client.announce(&meta.announce, params)?;
-        // println!("files: {}", meta.info.files.len());
-        // println!("pieces: {}", meta.info.pieces.len());
-        // println!("piece length: {}", meta.info.piece_length);
-        // Leeching::new(self.client_id.clone(), meta.info, torrent_info.peers);
+        let torrent_info = self.tracker_client.announce(&meta.announce, params)?;
+        let peers: VecDeque<Peer> = torrent_info.peers.into_iter().collect();
+
+        let mut downloader = Downloader::new(peers, meta.info);
+        downloader.run();
+
         Ok(())
     }
 }

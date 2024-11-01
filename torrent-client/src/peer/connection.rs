@@ -2,7 +2,7 @@ use crate::peer::connection::ConnectionError::*;
 use crate::peer::connection::HandshakeMessageError::{ProtocolString, ProtocolStringLen};
 use crate::peer::PeerId;
 use crate::util::{BitField, Sha1};
-use bytes::{Buf, BufMut};
+use bytes::Buf;
 use std::borrow::Cow;
 use std::cmp::PartialEq;
 use std::fmt::{Display, Formatter};
@@ -99,29 +99,29 @@ pub struct PeerConnection<T: Read + Write = TcpStream> {
 }
 
 impl<T: Read + Write> PeerConnection<T> {
-    pub fn handshake(mut tcp_connection: T, info_hash: &Sha1, peer_id: &PeerId) -> Result<Self> {
+    pub fn handshake(mut transport: T, info_hash: &Sha1, peer_id: &PeerId) -> Result<Self> {
         let mut bytes =
-            HandshakeMessage::new([0; 8], info_hash.clone(), peer_id.clone()).to_bytes();
-        let _ = tcp_connection.write_all(bytes.as_ref())?;
-        let _ = tcp_connection.read_exact(bytes.as_mut())?;
+            HandshakeMessage::new([0; 8], *info_hash, peer_id.clone()).to_bytes();
+        transport.write_all(bytes.as_ref())?;
+        transport.read_exact(bytes.as_mut())?;
         let response = HandshakeMessage::from_bytes(bytes)?;
 
         Ok(Self {
-            transport: tcp_connection,
+            transport,
             peer_id: response.peer_id,
         })
     }
 
     pub fn recv(&mut self) -> Result<Message> {
         let mut length_prefix = [0u8; 4];
-        let _ = self.transport.read_exact(&mut length_prefix)?;
+        self.transport.read_exact(&mut length_prefix)?;
         let length_prefix = u32::from_be_bytes(length_prefix);
         if length_prefix == 0 {
             return Ok(Message::KeepAlive);
         }
         let mut data = Vec::with_capacity(length_prefix as usize);
         data.resize(length_prefix as usize, 0);
-        let _ = self.transport.read_exact(data.as_mut_slice())?;
+        self.transport.read_exact(data.as_mut_slice())?;
         let message = Message::try_from(data.as_slice())?;
         Ok(message)
     }
@@ -284,7 +284,7 @@ impl TryFrom<&[u8]> for Message {
     type Error = ConnectionError;
 
     fn try_from(mut value: &[u8]) -> std::result::Result<Self, Self::Error> {
-        let id = value.get(0).ok_or(UnexpectedEOF)?.to_owned();
+        let id = value.first().ok_or(UnexpectedEOF)?.to_owned();
         value = &value[1..];
 
         let message: Message = match id {
@@ -301,7 +301,7 @@ impl TryFrom<&[u8]> for Message {
             )),
             5 => Message::Bitfield(
                 value
-                    .into_iter()
+                    .iter()
                     .map(|x| BitField::new(x.to_owned()))
                     .collect::<Vec<_>>(),
             ),

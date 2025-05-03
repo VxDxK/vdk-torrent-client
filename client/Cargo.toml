@@ -1,0 +1,14 @@
+[package]
+name = "client"
+version = "0.1.0"
+authors = ["VxDxK"]
+edition = "2024"
+repository = "https://github.com/VxDxK/vdk-torrent-client"
+keywords = ["torrent", "torrent-client"]
+categories = ["network-programming"]
+
+[dependencies]
+bencode = { path = "../bencode" }
+torrent = { path = "../torrent" }
+clap = {version = "4.5", features = ["derive"]}
+thiserror = "2"

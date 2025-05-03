@@ -21,7 +21,7 @@ impl PeerId {
 
     pub fn random() -> Self {
         let mut peer_id = [0; 20];
-        rand::thread_rng().fill_bytes(&mut peer_id);
+        rand::rng().fill_bytes(&mut peer_id);
         Self::new(peer_id)
     }
 }

@@ -1,15 +1,15 @@
 mod worker;
 
-use crate::client::worker::Downloader;
-use crate::client::ClientError::InboundConnection;
-use crate::file::TorrentFile;
-use crate::peer::{Peer, PeerId};
-use crate::tracker::{AnnounceParameters, RequestMode, TrackerClient, TrackerError};
+use torrent::file::TorrentFile;
+use torrent::peer::{Peer, PeerId};
+use torrent::tracker::{AnnounceParameters, RequestMode, TrackerClient, TrackerError};
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
 use std::sync::Arc;
 use thiserror::Error;
+use crate::client::ClientError::InboundConnection;
+use crate::client::worker::Downloader;
 
 #[derive(Error, Debug)]
 pub enum ClientError {

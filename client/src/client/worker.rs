@@ -1,6 +1,6 @@
-use crate::file::Info;
-use crate::peer::connection::{ConnectionError, PeerConnection};
-use crate::peer::{Peer, PeerId};
+use torrent::file::Info;
+use torrent::peer::connection::{ConnectionError, PeerConnection};
+use torrent::peer::{Peer, PeerId};
 use std::collections::VecDeque;
 use std::net::TcpStream;
 use std::sync::{mpsc, Arc, Mutex};
@@ -16,7 +16,7 @@ pub struct Downloader {
 
 impl Downloader {
     pub fn run(&mut self) {
-        let peer = self.peers.pop_front().unwrap();
+        let _ = self.peers.pop_front().unwrap();
     }
 
     pub fn new<T>(peers: T, info: Info) -> Self
@@ -46,12 +46,12 @@ impl Peering {
 
     fn run(&mut self) {
         let ch = self.received.lock().unwrap();
-        if let Ok(peer) = ch.recv() {
+        if let Ok(_) = ch.recv() {
             // if let Ok(conn) = self.connect(&peer) {
             //     self.work(conn);
             // }
         }
     }
 
-    fn work(&mut self, conn: PeerConnection) {}
+    fn work(&mut self, _conn: PeerConnection) {}
 }

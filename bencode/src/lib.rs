@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter};
 use std::num::TryFromIntError;
 use std::str::{from_utf8, FromStr, Utf8Error};
-use std::{i64, usize};
 use thiserror::Error;
 
 use crate::BencodeError::{

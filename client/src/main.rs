@@ -1,18 +1,14 @@
 use crate::client::{Client, Config};
-use crate::file::TorrentFile;
-use crate::peer::PeerId;
-use crate::tracker::HttpTracker;
 use bencode::BencodeDict;
 use clap::Parser;
 use std::fs::File;
 use std::io::Read;
+use torrent::file::TorrentFile;
+use torrent::peer::PeerId;
+use torrent::tracker::HttpTracker;
 
 mod cli;
-mod client;
-mod file;
-mod peer;
-mod tracker;
-mod util;
+pub mod client;
 
 fn main() {
     let cli = cli::Args::parse();

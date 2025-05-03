@@ -1,6 +1,6 @@
+use crate::peer::PeerId;
 use crate::peer::connection::ConnectionError::*;
 use crate::peer::connection::HandshakeMessageError::{ProtocolString, ProtocolStringLen};
-use crate::peer::PeerId;
 use crate::util::{BitField, Sha1};
 use bytes::Buf;
 use std::borrow::Cow;
@@ -16,7 +16,7 @@ type Result<T> = std::result::Result<T, ConnectionError>;
 static BIT_TORRENT_PROTOCOL_STRING: &[u8; 19] = b"BitTorrent protocol";
 
 #[derive(Error, Debug)]
-enum HandshakeMessageError {
+pub enum HandshakeMessageError {
     #[error("Invalid protocol string(pstr) length, expected 19, but got {0}")]
     ProtocolStringLen(u8),
     #[error("Unexpected protocol string, expected \"BitTorrent protocol\", but got {0}")]
@@ -100,8 +100,7 @@ pub struct PeerConnection<T: Read + Write = TcpStream> {
 
 impl<T: Read + Write> PeerConnection<T> {
     pub fn handshake(mut transport: T, info_hash: &Sha1, peer_id: &PeerId) -> Result<Self> {
-        let mut bytes =
-            HandshakeMessage::new([0; 8], *info_hash, peer_id.clone()).to_bytes();
+        let mut bytes = HandshakeMessage::new([0; 8], *info_hash, peer_id.clone()).to_bytes();
         transport.write_all(bytes.as_ref())?;
         transport.read_exact(bytes.as_mut())?;
         let response = HandshakeMessage::from_bytes(bytes)?;
@@ -130,6 +129,10 @@ impl<T: Read + Write> PeerConnection<T> {
         let bytes: Vec<u8> = message.into();
         self.transport.write_all(bytes.as_slice())?;
         Ok(())
+    }
+
+    pub fn get_id(&self) -> PeerId {
+        self.peer_id.clone()
     }
 }
 
@@ -324,17 +327,17 @@ impl TryFrom<&[u8]> for Message {
 
 #[cfg(test)]
 mod tests {
-    use crate::peer::connection::{HandshakeMessage, Message, BIT_TORRENT_PROTOCOL_STRING};
     use crate::peer::PeerId;
+    use crate::peer::connection::{BIT_TORRENT_PROTOCOL_STRING, HandshakeMessage, Message};
     use bytes::{BufMut, BytesMut};
     use rand::RngCore;
 
     #[test]
     fn handshake_message_as_bytes() {
         let mut extensions_bytes = [0; 8];
-        rand::thread_rng().fill_bytes(&mut extensions_bytes);
+        rand::rng().fill_bytes(&mut extensions_bytes);
         let mut info_hash = [0; 20];
-        rand::thread_rng().fill_bytes(&mut info_hash);
+        rand::rng().fill_bytes(&mut info_hash);
         let peed_id = PeerId::random();
 
         let mut bytes = BytesMut::with_capacity(68);
@@ -353,9 +356,9 @@ mod tests {
     #[test]
     fn handshake_message_from_bytes() {
         let mut extensions_bytes = [0; 8];
-        rand::thread_rng().fill_bytes(&mut extensions_bytes);
+        rand::rng().fill_bytes(&mut extensions_bytes);
         let mut info_hash = [0; 20];
-        rand::thread_rng().fill_bytes(&mut info_hash);
+        rand::rng().fill_bytes(&mut info_hash);
         let peed_id = PeerId::random();
 
         let mut bytes = BytesMut::with_capacity(68);

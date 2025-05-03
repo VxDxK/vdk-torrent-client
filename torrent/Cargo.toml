@@ -1,20 +1,18 @@
 [package]
-name = "torrent-client"
+name = "torrent"
 version = "0.1.0"
 authors = ["VxDxK"]
-edition = "2021"
+edition = "2024"
 repository = "https://github.com/VxDxK/vdk-torrent-client"
 keywords = ["torrent", "torrent-client"]
 categories = ["network-programming"]
 
 [dependencies]
 bencode = {path = "../bencode" }
-url = "2.5.2"
-percent-encoding = "2.3.1"
-thiserror = "1.0"
-clap = {version = "4.5.8", features = ["derive"]}
+url = "2.5"
+percent-encoding = "2.3"
+thiserror = "2"
 sha1 = "0.10"
 reqwest = { version = "0.12", features = ["blocking"] }
-rand = "0.8.5"
-hex = "0.4.3"
+rand = "0.9"
 bytes = "1"

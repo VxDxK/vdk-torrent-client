@@ -1,10 +1,10 @@
+use std::collections::VecDeque;
+use std::net::TcpStream;
+use std::sync::{Arc, Mutex, mpsc};
+use std::time::Duration;
 use torrent::file::Info;
 use torrent::peer::connection::{ConnectionError, PeerConnection};
 use torrent::peer::{Peer, PeerId};
-use std::collections::VecDeque;
-use std::net::TcpStream;
-use std::sync::{mpsc, Arc, Mutex};
-use std::time::Duration;
 
 pub struct Task {}
 

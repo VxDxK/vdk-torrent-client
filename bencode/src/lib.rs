@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter};
 use std::num::TryFromIntError;
-use std::str::{from_utf8, FromStr, Utf8Error};
+use std::str::{FromStr, Utf8Error, from_utf8};
 use thiserror::Error;
 
 use crate::BencodeError::{

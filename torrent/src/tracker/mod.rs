@@ -5,7 +5,7 @@ use crate::tracker::TrackerError::{
 use crate::util::Sha1;
 use bencode::{BencodeDict, Value};
 use bytes::Buf;
-use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
+use percent_encoding::{NON_ALPHANUMERIC, percent_encode};
 use std::fmt::{Display, Formatter};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::time::Duration;
@@ -163,15 +163,13 @@ impl AnnounceResponse {
                 for value in list {
                     match value {
                         Value::Dict(mut dict) => {
-                            let peer_id = dict
-                                .remove(b"peer id".as_slice())
-                                .and_then(|x| {
-                                    if let Value::String(s) = x {
-                                        Some(PeerId::new(s.try_into().ok()?))
-                                    } else {
-                                        None
-                                    }
-                                });
+                            let peer_id = dict.remove(b"peer id".as_slice()).and_then(|x| {
+                                if let Value::String(s) = x {
+                                    Some(PeerId::new(s.try_into().ok()?))
+                                } else {
+                                    None
+                                }
+                            });
                             let ip: String = dict
                                 .remove(b"ip".as_slice())
                                 .ok_or(ResponseFormat(
@@ -194,7 +192,7 @@ impl AnnounceResponse {
                             return Err(ResponseFormat(format!(
                                 "peers list of dicts format error, unexpected {}",
                                 v.name()
-                            )))
+                            )));
                         }
                     }
                 }
